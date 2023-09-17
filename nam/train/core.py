@@ -558,6 +558,12 @@ def _get_configs(
         }
     model_config["loss"]["mrstft_weight"] = 2e-4
 
+    _CAB_MRSTFT_PRE_EMPH_WEIGHT = 2.0e-4
+    _CAB_MRSTFT_PRE_EMPH_COEF = 0.85
+    
+    model_config["loss"]["pre_emph_mrstft_weight"] = _CAB_MRSTFT_PRE_EMPH_WEIGHT
+    model_config["loss"]["pre_emph_mrstft_coef"] = _CAB_MRSTFT_PRE_EMPH_COEF
+
     if torch.cuda.is_available():
         device_config = {"accelerator": "gpu", "devices": 1}
     elif torch.backends.mps.is_available():
