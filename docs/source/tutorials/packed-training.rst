@@ -6,7 +6,8 @@ masked WaveNet. Each submodel makes its own prediction for the same target
 audio, and training computes the loss for each prediction against that target
 before summing the losses.
 
-This is different from slimmable WaveNet training. Packed training keeps the
+Packed training is a slimmable NAM training method, but it is different from
+the channel-slicing slimmable WaveNet method. Packed training keeps the
 submodels independent during training by using block-diagonal masked weights.
 The exported ``model.nam`` is also not a packed inference graph: export extracts
 ordinary ``WaveNet`` models and stores them in a ``SlimmableContainer``.
@@ -133,7 +134,8 @@ Packed training currently does not support:
 * Grouped convolutions.
 * Grouped ``layer1x1`` or ``head1x1``.
 * Paired or gated activations.
-* Packed training plus slimmable WaveNet settings inside the same submodel.
+* Packed training plus channel-slicing slimmable WaveNet settings inside the
+  same submodel.
 * Multi-channel input.
 * Multi-channel conditioning audio.
 * Multi-channel output beyond one output channel per packed submodel.
