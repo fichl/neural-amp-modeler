@@ -69,7 +69,7 @@ button and everything will finish in about 10 minutes.
 
 .. image:: media/colab/1-click-train.png
 
-The Colab trainer uses NAM's fixed packed WaveNet configuration. There are a
+The Colab trainer uses NAM's A2 configuration. There are a
 few options below that you can use to control the run.
 
 Here are the options explained:
