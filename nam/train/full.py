@@ -18,13 +18,22 @@ from pytorch_lightning.utilities.warnings import (
 )
 from torch.utils.data import DataLoader as _DataLoader
 
+from nam.data import AbstractDataset as _AbstractDataset
 from nam.data import ConcatDataset as _ConcatDataset
 from nam.data import Split as _Split
+from nam.data import apply_joint_dataset_hooks as _apply_joint_dataset_hooks
+from nam.data import get_joint_dataset_hooks as _get_joint_dataset_hooks
 from nam.data import init_dataset as _init_dataset
 from nam.train import lightning_module as _lightning_module
 from nam.util import filter_warnings as _filter_warnings
 
 _torch.manual_seed(0)
+
+
+def _handshake_datasets(model, *datasets: _AbstractDataset) -> None:
+    for dataset in datasets:
+        dataset.handshake(model.net)
+        model.net.handshake(dataset)
 
 
 def _rms(x: _Union[_np.ndarray, _torch.Tensor]) -> float:
@@ -215,18 +224,15 @@ def main(
 
     dataset_train = _init_dataset(data_config, _Split.TRAIN)
     dataset_validation = _init_dataset(data_config, _Split.VALIDATION)
-    if dataset_train.sample_rate != dataset_validation.sample_rate:
-        raise RuntimeError(
-            "Train and validation data loaders have different data set sample rates: "
-            f"{dataset_train.sample_rate}, {dataset_validation.sample_rate}"
-        )
+    _apply_joint_dataset_hooks(
+        dataset_train=dataset_train,
+        dataset_validation=dataset_validation,
+        hooks=_get_joint_dataset_hooks(data_config.get("joint", [])),
+    )
     model.net.sample_rate = dataset_train.sample_rate
 
     # Perform handshakes:
-    dataset_train.handshake(model.net)
-    dataset_validation.handshake(model.net)
-    model.net.handshake(dataset_train)
-    model.net.handshake(dataset_validation)
+    _handshake_datasets(model, dataset_train, dataset_validation)
 
     train_dataloader = _DataLoader(dataset_train, **learning_config["train_dataloader"])
     val_dataloader = _DataLoader(
@@ -265,6 +271,8 @@ def main(
             )
         model.cpu()
         model.eval()
+        model.net.sample_rate = dataset_train.sample_rate
+        _handshake_datasets(model, dataset_train, dataset_validation)
         if make_plots:
             _plot(
                 model,

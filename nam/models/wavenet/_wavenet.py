@@ -235,6 +235,8 @@ class WaveNet(_Slimmable, _nn.Module, _InitializableFromConfig):
         weights = _torch.cat([layer.export_weights() for layer in self._layer_arrays])
         if self._head is not None:
             weights = _torch.cat([weights, self._head.export_weights()])
+        # Keep head_scale as the final exported weight; dataset export hooks rely on
+        # weights[-1] matching config["head_scale"] when compensating output scaling.
         weights = _torch.cat([weights.cpu(), _torch.Tensor([self._head_scale])])
         return weights.detach().cpu().numpy()
 

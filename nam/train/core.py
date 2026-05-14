@@ -36,6 +36,8 @@ from torch.utils.data import DataLoader as _DataLoader
 from ..data import AbstractDataset as _AbstractDataset
 from ..data import DataError as _DataError
 from ..data import Split as _Split
+from ..data import apply_joint_dataset_hooks as _apply_joint_dataset_hooks
+from ..data import get_joint_dataset_hooks as _get_joint_dataset_hooks
 from ..data import init_dataset as _init_dataset
 from ..data import wav_to_np as _wav_to_np
 from ..data import wav_to_tensor as _wav_to_tensor
@@ -871,6 +873,9 @@ def _get_data_config(
             "delay": latency,
             "allow_unequal_lengths": True,
         },
+        "joint": [
+            {"name": "nam.data.normalize_joint_dataset_output", "kwargs": {"level_rms_dbfs": -18.0}}
+        ],
     }
     return data_config
 
@@ -939,11 +944,11 @@ def _get_dataloaders(
     data_config["common"]["nx"] = model.net.receptive_field
     dataset_train = _init_dataset(data_config, _Split.TRAIN)
     dataset_validation = _init_dataset(data_config, _Split.VALIDATION)
-    if dataset_train.sample_rate != dataset_validation.sample_rate:
-        raise RuntimeError(
-            "Train and validation data loaders have different data set sample rates: "
-            f"{dataset_train.sample_rate}, {dataset_validation.sample_rate}"
-        )
+    _apply_joint_dataset_hooks(
+        dataset_train=dataset_train,
+        dataset_validation=dataset_validation,
+        hooks=_get_joint_dataset_hooks(data_config.get("joint", [])),
+    )
     model.net.sample_rate = dataset_train.sample_rate
 
     # Perform handshakes:
@@ -957,6 +962,20 @@ def _get_dataloaders(
         dataset_validation, **learning_config["val_dataloader"]
     )
     return train_dataloader, val_dataloader
+
+
+def _handshake_dataloaders(
+    model: _LightningModule, train_dataloader: _DataLoader, val_dataloader: _DataLoader
+) -> None:
+    datasets = []
+    for dataloader in (train_dataloader, val_dataloader):
+        dataset = dataloader.dataset
+        assert isinstance(dataset, _AbstractDataset)
+        datasets.append(dataset)
+    for dataset in datasets:
+        dataset.handshake(model.net)
+    for dataset in datasets:
+        model.net.handshake(dataset)
 
 
 def _esr(pred: _torch.Tensor, target: _torch.Tensor) -> float:
@@ -1459,6 +1478,7 @@ def train(
         model.cpu()
         model.eval()
         model.net.sample_rate = sample_rate  # Hack, part 2
+        _handshake_dataloaders(model, train_dataloader, val_dataloader)
         if is_packed and packed_best_callback is not None:
             _apply_packed_best_checkpoints(
                 model, model_config, packed_best_callback.checkpoint_paths

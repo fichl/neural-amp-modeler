@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pytest
 
 from nam.data import np_to_wav as _np_to_wav
 from nam.train import full as _full
@@ -39,6 +40,12 @@ def _data_config(x_path, y_path):
             "start_samples": -_NUM_VALIDATION_SAMPLES,
             "ny": None,
         },
+        "joint": [
+            {
+                "name": "nam.data.normalize_joint_dataset_output",
+                "kwargs": {"level_rms_dbfs": -18.0},
+            }
+        ],
     }
 
 
@@ -131,6 +138,12 @@ def test_full_main_exports_packed_slimmable_container(tmp_path):
         "WaveNet",
         "WaveNet",
     ]
+    for entry in submodels:
+        submodel = entry["model"]
+        assert submodel["config"]["head_scale"] != 0.25
+        assert submodel["weights"][-1] == pytest.approx(
+            submodel["config"]["head_scale"]
+        )
 
     assert (outdir / "packed_best.json").exists()
     for i in range(2):

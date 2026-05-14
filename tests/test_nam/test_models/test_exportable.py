@@ -18,6 +18,7 @@ import torch
 import torch.nn as nn
 from pydantic import BaseModel
 
+from nam.hooks import ExportModelDictPostHook as _ExportModelDictPostHook
 from nam.models import exportable, metadata
 from nam.train import metadata as train_metadata
 
@@ -176,33 +177,35 @@ class TestExportable(object):
 
         calls = []
 
-        def rename_model(model_dict: dict) -> dict:
-            calls.append("rename_model")
-            assert model_dict["metadata"]["name"] == "Before hook"
-            return {
-                **model_dict,
-                "metadata": {
-                    **model_dict["metadata"],
-                    "name": "Renamed",
-                },
-                "hook_order": calls.copy(),
-            }
+        class RenameModel(_ExportModelDictPostHook):
+            def apply(self, model_dict: dict) -> dict:
+                calls.append("rename_model")
+                assert model_dict["metadata"]["name"] == "Before hook"
+                return {
+                    **model_dict,
+                    "metadata": {
+                        **model_dict["metadata"],
+                        "name": "Renamed",
+                    },
+                    "hook_order": calls.copy(),
+                }
 
-        def replace_model_dict(model_dict: dict) -> dict:
-            calls.append("replace_model_dict")
-            assert model_dict["metadata"]["name"] == "Renamed"
-            return {
-                **model_dict,
-                "metadata": {
-                    **model_dict["metadata"],
-                    "name": "Replaced",
-                },
-                "hook_order": calls.copy(),
-                "config": {"hooked": True},
-            }
+        class ReplaceModelDict(_ExportModelDictPostHook):
+            def apply(self, model_dict: dict) -> dict:
+                calls.append("replace_model_dict")
+                assert model_dict["metadata"]["name"] == "Renamed"
+                return {
+                    **model_dict,
+                    "metadata": {
+                        **model_dict["metadata"],
+                        "name": "Replaced",
+                    },
+                    "hook_order": calls.copy(),
+                    "config": {"hooked": True},
+                }
 
-        model.export_model_dict_post_hooks.append(rename_model)
-        model.export_model_dict_post_hooks.append(replace_model_dict)
+        model.export_model_dict_post_hooks.append(RenameModel())
+        model.export_model_dict_post_hooks.append(ReplaceModelDict())
 
         with TemporaryDirectory() as tmpdir:
             model.export(
@@ -224,14 +227,16 @@ class TestExportable(object):
         """
         model = self._get_model()
 
-        def first_hook(model_dict: dict) -> dict:
-            return {**model_dict, "hooked": "first"}
+        class FirstHook(_ExportModelDictPostHook):
+            def apply(self, model_dict: dict) -> dict:
+                return {**model_dict, "hooked": "first"}
 
-        def second_hook(model_dict: dict) -> dict:
-            return {**model_dict, "hooked": "second"}
+        class SecondHook(_ExportModelDictPostHook):
+            def apply(self, model_dict: dict) -> dict:
+                return {**model_dict, "hooked": "second"}
 
-        model.export_model_dict_post_hooks = [first_hook]
-        model.export_model_dict_post_hooks = [second_hook]
+        model.export_model_dict_post_hooks = [FirstHook()]
+        model.export_model_dict_post_hooks = [SecondHook()]
 
         with TemporaryDirectory() as tmpdir:
             model.export(tmpdir)

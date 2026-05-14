@@ -9,7 +9,6 @@ from datetime import datetime as _datetime
 from enum import Enum as _Enum
 from pathlib import Path as _Path
 from typing import Any as _Any
-from typing import Callable as _Callable
 from typing import Dict as _Dict
 from typing import List as _List
 from typing import Optional as _Optional
@@ -19,6 +18,7 @@ from typing import Union as _Union
 
 import numpy as _np
 
+from ..hooks import ExportModelDictPostHook as _ExportModelDictPostHook
 from ._constants import MODEL_VERSION as _MODEL_VERSION
 from .metadata import Date as _Date
 from .metadata import UserMetadata as _UserMetadata
@@ -44,7 +44,7 @@ _JsonDumpable = (
     dict[str, "_JsonDumpable"] | list["_JsonDumpable"] | str | int | float | bool | None
 )
 _ExportModelDict = _Dict[str, _JsonDumpable]
-_ExportModelDictPostHook = _Callable[[_ExportModelDict], _ExportModelDict]
+
 
 
 class Exportable(_abc.ABC):
@@ -62,8 +62,8 @@ class Exportable(_abc.ABC):
         """
         Hooks run after the model export dictionary has been assembled.
 
-        Hooks return the model dictionary that should be passed to the next hook
-        and written to disk.
+        Hooks are ExportModelDictPostHook instances. Each hook's .apply() method returns
+        the model dictionary that should be passed to the next hook and written to disk.
         """
         if "_export_model_dict_post_hooks" not in self.__dict__:
             self._export_model_dict_post_hooks = []
@@ -178,7 +178,7 @@ class Exportable(_abc.ABC):
         self, model_dict: _ExportModelDict
     ) -> _ExportModelDict:
         for hook in self.export_model_dict_post_hooks:
-            model_dict = hook(model_dict)
+            model_dict = hook.apply(model_dict)
         return model_dict
 
     def _get_export_architecture(self) -> str:
